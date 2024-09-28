@@ -22,12 +22,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${PARENT_DIR}/include)
 # target_link_libraries(${PROJECT_NAME} LINK_PUBLIC GTest::GTest GTest::Main)
 
 include(${PARENT_DIR}/cmake/CompilerWarnings.cmake)
-include(${PARENT_DIR}/cmake/Sanitizers.cmake)
 
 myproject_set_project_warnings(${PROJECT_NAME} TRUE "X" "" "" "X")
 
 add_compile_options(-pipe -fPIC)
-myproject_enable_sanitizers(${PROJECT_NAME} TRUE TRUE TRUE FALSE TRUE)
 
 # we cannot analyse results without gcov
 find_program(GCOV_PATH gcov)

@@ -20,9 +20,7 @@ add_executable(${PROJECT_NAME} seqlock-example.cpp)
 target_include_directories(${PROJECT_NAME} PRIVATE ${PARENT_DIR}/include)
 
 include(${PARENT_DIR}/cmake/CompilerWarnings.cmake)
-include(${PARENT_DIR}/cmake/Sanitizers.cmake)
 
 myproject_set_project_warnings(${PROJECT_NAME} TRUE "X" "" "" "X")
 
 add_compile_options(-pipe -fPIC)
-myproject_enable_sanitizers(${PROJECT_NAME} TRUE TRUE TRUE FALSE TRUE)

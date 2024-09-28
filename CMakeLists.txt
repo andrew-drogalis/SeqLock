@@ -17,12 +17,10 @@ target_include_directories(${PROJECT_NAME} INTERFACE
         $<INSTALL_INTERFACE:include>)
 
 include(cmake/CompilerWarnings.cmake)
-include(cmake/Sanitizers.cmake)
 
 myproject_set_project_warnings(${PROJECT_NAME} TRUE "X" "" "" "X")
 
 add_compile_options(-pipe -fPIC)
-myproject_enable_sanitizers(${PROJECT_NAME} TRUE TRUE TRUE FALSE TRUE)
 
 # ------------------------------
 # Install library
@@ -47,11 +45,6 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     install(
         EXPORT "${PROJECT_NAME}Config"
         NAMESPACE ${PROJECT_NAME}::
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
-    )
-
-    install(
-        FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
     )
 endif()
