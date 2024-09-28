@@ -11,9 +11,9 @@
 #include "dro/seqlock.hpp"
 
 #include <chrono>
+#include <iostream>
 #include <string>
 #include <thread>
-#include <iostream>
 
 #include <pthread.h>
 #include <sched.h>
@@ -56,31 +56,18 @@ int main(int argc, char* argv[])
 
   auto thrd = std::thread([&] {
     pinThread(cpu1);
-    for (int i {}; i < iters; ++i)
-    {
-      for (;;)
-      {
-        auto data = seqlock.load();
-        if (data.x == 100)
-        {
-          break;
-        }
-      }
-    }
+    for (int i {}; i < iters; ++i) { auto data = seqlock.load(); }
   });
 
   pinThread(cpu2);
 
   auto start = std::chrono::steady_clock::now();
-  for (int i {}; i < iters; ++i)
-  {
-    seqlock.store({0});
-    seqlock.store({100});
-  }
+  for (int i {}; i < iters; ++i) { seqlock.store({i}); }
   thrd.join();
   auto stop = std::chrono::steady_clock::now();
 
-  std::cout << "Operations per ms: " << iters * 1'000'000 /
+  std::cout << "Operations per ms: "
+            << iters * 1'000'000 /
                    std::chrono::duration_cast<std::chrono::nanoseconds>(stop -
                                                                         start)
                        .count()
