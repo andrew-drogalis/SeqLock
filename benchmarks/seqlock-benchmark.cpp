@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <numeric>
 #include <string>
 #include <thread>
 
@@ -46,6 +47,9 @@ int main(int argc, char* argv[])
   }
 
   const std::size_t iters {10'000'000};
+  const std::size_t trialSize {21};
+  static_assert(trialSize % 2, "Trial size must be odd");
+  std::vector<std::size_t> operations(trialSize);
 
   struct alignas(4) Data
   {
@@ -54,24 +58,32 @@ int main(int argc, char* argv[])
 
   dro::Seqlock<Data> seqlock;
 
-  auto thrd = std::thread([&] {
-    pinThread(cpu1);
-    for (int i {}; i < iters; ++i) { auto data = seqlock.load(); }
-  });
+  for (int i {}; i < trialSize; ++i)
+  {
+    auto thrd = std::thread([&] {
+      pinThread(cpu1);
+      for (int i {}; i < iters; ++i) { auto data = seqlock.load(); }
+    });
 
-  pinThread(cpu2);
+    pinThread(cpu2);
 
-  auto start = std::chrono::steady_clock::now();
-  for (int i {}; i < iters; ++i) { seqlock.store({i}); }
-  thrd.join();
-  auto stop = std::chrono::steady_clock::now();
+    auto start = std::chrono::steady_clock::now();
+    for (int i {}; i < iters; ++i) { seqlock.store({i}); }
+    thrd.join();
+    auto stop = std::chrono::steady_clock::now();
 
-  std::cout << "Operations per ms: "
-            << iters * 1'000'000 /
-                   std::chrono::duration_cast<std::chrono::nanoseconds>(stop -
-                                                                        start)
-                       .count()
-            << '\n';
+    operations[i] =
+        iters * 1'000'000 /
+        std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start)
+            .count();
+  }
+
+  std::sort(operations.begin(), operations.end());
+  std::cout << "Mean: "
+            << std::accumulate(operations.begin(), operations.end(), 0) /
+                   trialSize
+            << " ops/ms \n";
+  std::cout << "Median: " << operations[trialSize / 2] << " ops/ms \n";
 
   return 0;
 }
