@@ -8,8 +8,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-#include "dro/seqlock.hpp"
-
 #include <atomic>
 #include <cassert>
 #include <iostream>
@@ -17,15 +15,48 @@
 #include <thread>
 #include <vector>
 
+#include "dro/seqlock.hpp"
+
 int main(int argc, char* argv[])
 {
   // Basic test
   {
     dro::Seqlock<int> seqlock;
+    int result {};
     seqlock.store(1);
-    assert(seqlock.load() == 1);
+    seqlock.load(result);
+    assert(result == 1);
     seqlock.store(2);
-    assert(seqlock.load() == 2);
+    seqlock.load(result);
+    assert(result == 2);
+  }
+
+  // Copyable Only test
+  {
+    struct Test
+    {
+      int x_;
+      int y_;
+      Test() = default;
+      Test(int x, int y) : x_(x), y_(y) {}
+      ~Test()                      = default;
+      Test(const Test&)            = default;
+      Test& operator=(const Test&) = default;
+      Test(Test&&)                 = delete;
+      Test& operator=(Test&&)      = delete;
+    };
+    dro::Seqlock<Test> seqlock;
+    Test val {1, 2};
+    seqlock.store(val);
+    Test result {};
+    seqlock.load(result);
+    assert(result.x_ == 1);
+    assert(result.y_ == 2);
+    // R-value
+    seqlock.store(Test(3, 4));
+    seqlock.load(result);
+    assert(result.x_ == 3);
+    assert(result.y_ == 4);
   }
 
   // Fuzz test
@@ -38,15 +69,17 @@ int main(int argc, char* argv[])
     dro::Seqlock<Data> seqlock;
     std::atomic<std::size_t> ready(0);
     std::vector<std::thread> threads;
+    const int size {100};
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = {}; i < size; ++i)
     {
       threads.emplace_back([&seqlock, &ready]() {
         while (ready == 0) {}
         for (std::size_t i {}; i < 10'000'000; ++i)
         {
-          auto data = seqlock.load();
-          if (data.x + 100 != data.y || data.z != data.x + data.y)
+          Data copy {};
+          seqlock.load(copy);
+          if (copy.x + 100 != copy.y || copy.z != copy.x + copy.y)
           {
             throw std::runtime_error("Read tearing occurred");
           }
@@ -58,7 +91,7 @@ int main(int argc, char* argv[])
     std::size_t counter = 0;
     while (true)
     {
-      Data data = {counter++, data.x + 100, data.y + data.z};
+      Data data = {counter++, data.x + 100, data.y + data.x};
       seqlock.store(data);
       if (counter == 1)
       {
@@ -71,9 +104,8 @@ int main(int argc, char* argv[])
     }
 
     for (auto& thrd : threads) { thrd.join(); }
-
-    std::cout << "Test Completed!\n";
   }
+  std::cout << "Test Completed!\n";
 
   return 0;
 }
