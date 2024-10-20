@@ -29,13 +29,11 @@ static constexpr std::size_t cacheLineSize = 64;
 
 template <typename T>
 concept Seq_Type =
-    std::is_default_constructible_v<T> &&
-    (std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>);
+    std::is_default_constructible_v<T> && std::is_copy_assignable_v<T>;
 
 template <typename T>
 concept Seq_NoThrow =
-    ((std::is_nothrow_copy_assignable_v<T> && std::is_copy_assignable_v<T>) ||
-     (std::is_nothrow_move_assignable_v<T> && std::is_move_assignable_v<T>));
+    std::is_nothrow_copy_assignable_v<T> && std::is_copy_assignable_v<T>;
 
 template <Seq_Type T> class alignas(cacheLineSize) Seqlock
 {
@@ -49,26 +47,32 @@ private:
 public:
   Seqlock() = default;
 
-  [[nodiscard]] value_type load() const noexcept(Seq_NoThrow<T>)
+  void load(value_type& output) const noexcept(Seq_NoThrow<T>)
   {
-    value_type output;
     size_type seqStart {0};
     size_type seqEnd {1};
     while (seqStart != seqEnd || seqStart & 1)
     {
       seqStart = seq_.load(std::memory_order_acquire);
       std::atomic_thread_fence(std::memory_order_acq_rel);
-      read_value(output);
+      output = value_;
       std::atomic_thread_fence(std::memory_order_acq_rel);
       seqEnd = seq_.load(std::memory_order_acquire);
     }
-    return output;
   }
 
   void store(const value_type& input) noexcept(Seq_NoThrow<T>)
   {
-    std::size_t seqStart = seq_.load(std::memory_order_relaxed);
-    seq_.store(seqStart + 1, std::memory_order_release);
+    std::size_t seqStart = seq_.fetch_add(1, std::memory_order_acq_rel);
+    std::atomic_signal_fence(std::memory_order_acq_rel);
+    value_ = input;
+    std::atomic_signal_fence(std::memory_order_acq_rel);
+    seq_.store(seqStart + 2, std::memory_order_release);
+  }
+
+  void store(value_type&& input) noexcept(Seq_NoThrow<T>)
+  {
+    std::size_t seqStart = seq_.fetch_add(1, std::memory_order_acq_rel);
     std::atomic_signal_fence(std::memory_order_acq_rel);
     write_value(input);
     std::atomic_signal_fence(std::memory_order_acq_rel);
@@ -76,25 +80,13 @@ public:
   }
 
 private:
-  void read_value(value_type& output) const noexcept(Seq_NoThrow<T>)
-    requires std::is_copy_assignable_v<T> && (! std::is_move_assignable_v<T>)
-  {
-    output = value_;
-  }
-
-  void read_value(value_type& output) const noexcept(Seq_NoThrow<T>)
-    requires std::is_move_assignable_v<T>
-  {
-    output = std::move(value_);
-  }
-
-  void write_value(const value_type& input) noexcept(Seq_NoThrow<T>)
+  void write_value(value_type& input) noexcept(Seq_NoThrow<T>)
     requires std::is_copy_assignable_v<T> && (! std::is_move_assignable_v<T>)
   {
     value_ = input;
   }
 
-  void write_value(const value_type& input) noexcept(Seq_NoThrow<T>)
+  void write_value(value_type& input) noexcept(Seq_NoThrow<T>)
     requires std::is_move_assignable_v<T>
   {
     value_ = std::move(input);
