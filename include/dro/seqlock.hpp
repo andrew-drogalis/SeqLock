@@ -74,23 +74,11 @@ public:
   {
     std::size_t seqStart = seq_.fetch_add(1, std::memory_order_acq_rel);
     std::atomic_signal_fence(std::memory_order_acq_rel);
-    write_value(input);
+    value_ = input;
     std::atomic_signal_fence(std::memory_order_acq_rel);
     seq_.store(seqStart + 2, std::memory_order_release);
   }
 
-private:
-  void write_value(value_type& input) noexcept(Seq_NoThrow<T>)
-    requires std::is_copy_assignable_v<T> && (! std::is_move_assignable_v<T>)
-  {
-    value_ = input;
-  }
-
-  void write_value(value_type& input) noexcept(Seq_NoThrow<T>)
-    requires std::is_move_assignable_v<T>
-  {
-    value_ = std::move(input);
-  }
 };
 }// namespace dro
 
